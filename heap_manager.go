@@ -96,11 +96,16 @@ func (m heapManager) run(shutdownNotifier chan<- interface{}) {
 			for b := range slices.Values(bHeap) {
 				go b.render(data.width)
 			}
-			ordered := make([]*Bar, 0, bHeap.Len())
-			for bHeap.Len() != 0 {
-				ordered = append(ordered, heap.Pop(&bHeap).(*Bar))
+			done := make(chan struct{})
+			data.seqCh <- func(yield func(*Bar) bool) {
+				defer close(done)
+				for bHeap.Len() != 0 {
+					if !yield(heap.Pop(&bHeap).(*Bar)) {
+						break
+					}
+				}
 			}
-			data.seqCh <- slices.Values(ordered)
+			<-done
 		case h_iter:
 			data := req.data.(iterData)
 			for b := range slices.Values(bHeap) {
