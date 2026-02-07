@@ -174,17 +174,12 @@ func (p *Progress) Add(total int64, filler BarFiller, options ...BarOption) (*Ba
 	}
 }
 
-func (p *Progress) traverseBars(cb func(b *Bar) bool) {
-	req := make(iterRequest, 1)
+// blocks until s.hm.iter is done
+func (p *Progress) traverseBars(yield func(*Bar) bool) {
+	done := make(chan struct{})
 	select {
-	case p.operateState <- func(s *pState) {
-		s.hm.iter(req)
-	}:
-		for b := range <-req {
-			if !cb(b) {
-				break
-			}
-		}
+	case p.operateState <- func(s *pState) { s.hm.iter(yield, done) }:
+		<-done
 	case <-p.done:
 	}
 }
@@ -337,9 +332,7 @@ func (s *pState) manualRefreshListener(done chan struct{}) {
 }
 
 func (s *pState) render(cw *cwriter.Writer) (err error) {
-	req := make(iterRequest, 2)
 	s.hm.sync()
-	s.hm.iter(req, req)
 
 	var width, height int
 	if cw.IsTerminal() {
@@ -352,18 +345,14 @@ func (s *pState) render(cw *cwriter.Writer) (err error) {
 		height = width
 	}
 
-	for b := range <-req {
-		go b.render(width)
-	}
-
-	return s.flush(cw, height, <-req)
+	return s.flush(cw, height, s.hm.render(width))
 }
 
-func (s *pState) flush(cw *cwriter.Writer, height int, iter <-chan *Bar) error {
+func (s *pState) flush(cw *cwriter.Writer, height int, seqCh iterRequest) error {
 	var total, popCount int
-	rows := make([][]io.Reader, 0, cap(iter))
+	var rows [][]io.Reader
 
-	for b := range iter {
+	for b := range <-seqCh {
 		frame := <-b.frameCh
 		if frame.err != nil {
 			b.cancel()

@@ -2,6 +2,8 @@ package mpb
 
 import (
 	"container/heap"
+	"iter"
+	"slices"
 	"time"
 
 	"github.com/vbauerster/mpb/v8/decor"
@@ -14,6 +16,7 @@ type heapCmd int
 const (
 	h_sync heapCmd = iota
 	h_push
+	h_render
 	h_iter
 	h_fix
 	h_state
@@ -24,11 +27,21 @@ type heapRequest struct {
 	data interface{}
 }
 
-type iterRequest chan (<-chan *Bar)
+type iterRequest chan iter.Seq[*Bar]
 
 type pushData struct {
 	bar  *Bar
 	sync bool
+}
+
+type renderData struct {
+	width int
+	seqCh iterRequest
+}
+
+type iterData struct {
+	yield func(*Bar) bool
+	done  chan struct{}
 }
 
 type fixData struct {
@@ -78,17 +91,24 @@ func (m heapManager) run(shutdownNotifier chan<- interface{}) {
 			data := req.data.(pushData)
 			heap.Push(&bHeap, data.bar)
 			sync = sync || data.sync
+		case h_render:
+			data := req.data.(renderData)
+			for b := range slices.Values(bHeap) {
+				go b.render(data.width)
+			}
+			ordered := make([]*Bar, 0, bHeap.Len())
+			for bHeap.Len() != 0 {
+				ordered = append(ordered, heap.Pop(&bHeap).(*Bar))
+			}
+			data.seqCh <- slices.Values(ordered)
 		case h_iter:
-			for i, req := range req.data.([]iterRequest) {
-				ch := make(chan *Bar, bHeap.Len())
-				req <- ch
-				switch i {
-				case 0:
-					rangeOverSlice(bHeap, ch)
-				case 1:
-					popOverHeap(&bHeap, ch)
+			data := req.data.(iterData)
+			for b := range slices.Values(bHeap) {
+				if !data.yield(b) {
+					break
 				}
 			}
+			close(data.done)
 		case h_fix:
 			data := req.data.(fixData)
 			if data.bar.index < 0 {
@@ -114,8 +134,15 @@ func (m heapManager) push(b *Bar, sync bool) {
 	m <- heapRequest{cmd: h_push, data: data}
 }
 
-func (m heapManager) iter(req ...iterRequest) {
-	m <- heapRequest{cmd: h_iter, data: req}
+func (m heapManager) render(width int) iterRequest {
+	data := renderData{width, make(iterRequest)}
+	m <- heapRequest{cmd: h_render, data: data}
+	return data.seqCh
+}
+
+func (m heapManager) iter(yield func(*Bar) bool, done chan struct{}) {
+	data := iterData{yield, done}
+	m <- heapRequest{cmd: h_iter, data: data}
 }
 
 func (m heapManager) fix(b *Bar, priority int, lazy bool) {
@@ -147,21 +174,5 @@ func maxWidthDistributor(column []*decor.Sync, done <-chan struct{}) {
 	}
 	for _, s := range column {
 		s.Rx <- maxWidth
-	}
-}
-
-// unordered iteration
-func rangeOverSlice(s barHeap, dst chan<- *Bar) {
-	defer close(dst)
-	for _, b := range s {
-		dst <- b
-	}
-}
-
-// ordered iteration
-func popOverHeap(h heap.Interface, dst chan<- *Bar) {
-	defer close(dst)
-	for h.Len() != 0 {
-		dst <- heap.Pop(h).(*Bar)
 	}
 }
