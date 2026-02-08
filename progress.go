@@ -175,12 +175,16 @@ func (p *Progress) Add(total int64, filler BarFiller, options ...BarOption) (*Ba
 	}
 }
 
-// blocks until s.hm.iter is done
+// blocks until iteration is done
 func (p *Progress) traverseBars(yield func(*Bar) bool) {
-	done := make(chan struct{})
+	seqCh := make(iterRequest)
 	select {
-	case p.operateState <- func(s *pState) { s.hm.iter(yield, done) }:
-		<-done
+	case p.operateState <- func(s *pState) { s.hm.iter(seqCh) }:
+		for b := range <-seqCh {
+			if !yield(b) {
+				break
+			}
+		}
 	case <-p.done:
 	}
 }

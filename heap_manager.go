@@ -39,11 +39,6 @@ type renderData struct {
 	seqCh iterRequest
 }
 
-type iterData struct {
-	yield func(*Bar) bool
-	done  chan struct{}
-}
-
 type fixData struct {
 	bar      *Bar
 	priority int
@@ -107,13 +102,17 @@ func (m heapManager) run(shutdownNotifier chan<- interface{}) {
 			}
 			<-done
 		case h_iter:
-			data := req.data.(iterData)
-			for b := range slices.Values(bHeap) {
-				if !data.yield(b) {
-					break
+			seqCh := req.data.(iterRequest)
+			done := make(chan struct{})
+			seqCh <- func(yield func(*Bar) bool) {
+				defer close(done)
+				for _, b := range bHeap {
+					if !yield(b) {
+						break
+					}
 				}
 			}
-			close(data.done)
+			<-done
 		case h_fix:
 			data := req.data.(fixData)
 			if data.bar.index < 0 {
@@ -145,9 +144,8 @@ func (m heapManager) render(width int) iterRequest {
 	return data.seqCh
 }
 
-func (m heapManager) iter(yield func(*Bar) bool, done chan struct{}) {
-	data := iterData{yield, done}
-	m <- heapRequest{cmd: h_iter, data: data}
+func (m heapManager) iter(seqCh iterRequest) {
+	m <- heapRequest{cmd: h_iter, data: seqCh}
 }
 
 func (m heapManager) fix(b *Bar, priority int, lazy bool) {
