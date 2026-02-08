@@ -489,7 +489,7 @@ func (s *bState) draw(stat decor.Statistics) (io.Reader, error) {
 		return err
 	}
 
-	for i, buf := range s.buffers[:2] {
+	for i, buf := range s.buffers[1:] {
 		err := decorFiller(buf, s.decorGroups[i])
 		if err != nil {
 			return nil, err
@@ -497,23 +497,23 @@ func (s *bState) draw(stat decor.Statistics) (io.Reader, error) {
 	}
 
 	if s.trimSpace || stat.AvailableWidth < 2 {
-		err := s.filler.Fill(s.buffers[2], stat)
+		err := s.filler.Fill(s.buffers[0], stat)
 		return io.MultiReader(
+			s.buffers[1],
 			s.buffers[0],
 			s.buffers[2],
-			s.buffers[1],
 			strings.NewReader("\n"),
 		), err
 	}
 
 	stat.AvailableWidth -= 2
-	err := s.filler.Fill(s.buffers[2], stat)
+	err := s.filler.Fill(s.buffers[0], stat)
 	return io.MultiReader(
+		s.buffers[1],
+		strings.NewReader(" "),
 		s.buffers[0],
 		strings.NewReader(" "),
 		s.buffers[2],
-		strings.NewReader(" "),
-		s.buffers[1],
 		strings.NewReader("\n"),
 	), err
 }
