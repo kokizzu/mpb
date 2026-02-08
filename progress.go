@@ -156,7 +156,7 @@ func (p *Progress) Add(total int64, filler BarFiller, options ...BarOption) (*Ba
 	} else if f, ok := filler.(BarFillerFunc); ok && f == nil {
 		filler = NopStyle().Build()
 	}
-	ch := make(chan *Bar)
+	ch := make(chan *Bar, 1)
 	select {
 	case p.operateState <- func(ps *pState) {
 		bs := ps.makeBarState(total, filler, options...)
@@ -177,7 +177,7 @@ func (p *Progress) Add(total int64, filler BarFiller, options ...BarOption) (*Ba
 
 // blocks until iteration is done
 func (p *Progress) traverseBars(yield func(*Bar) bool) {
-	seqCh := make(iterRequest)
+	seqCh := make(iterRequest, 1)
 	select {
 	case p.operateState <- func(s *pState) { s.hm.iter(seqCh) }:
 		for b := range <-seqCh {
@@ -211,7 +211,7 @@ func (p *Progress) Write(b []byte) (int, error) {
 		n   int
 		err error
 	}
-	ch := make(chan result)
+	ch := make(chan result, 1)
 	select {
 	case p.interceptIO <- func(w io.Writer) {
 		n, err := w.Write(b)
@@ -292,7 +292,7 @@ func (p *Progress) serve(s *pState, cw *cwriter.Writer) {
 			if err != nil {
 				_, _ = fmt.Fprintln(s.debugOut, err.Error())
 			} else if s.autoRefresh {
-				update := make(chan bool)
+				update := make(chan bool, 1)
 				for i := 0; i == 0 || <-update; i++ {
 					if err := s.render(w); err != nil {
 						_, _ = fmt.Fprintln(s.debugOut, err.Error())

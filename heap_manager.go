@@ -139,7 +139,7 @@ func (m heapManager) push(b *Bar, sync bool) {
 }
 
 func (m heapManager) render(width int) iterRequest {
-	data := renderData{width, make(iterRequest)}
+	data := renderData{width, make(iterRequest, 1)}
 	m <- heapRequest{cmd: h_render, data: data}
 	return data.seqCh
 }
