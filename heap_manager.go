@@ -3,7 +3,6 @@ package mpb
 import (
 	"container/heap"
 	"iter"
-	"slices"
 	"time"
 
 	"github.com/vbauerster/mpb/v8/decor"
@@ -88,7 +87,7 @@ func (m heapManager) run(shutdownNotifier chan<- interface{}) {
 			sync = sync || data.sync
 		case h_render:
 			data := req.data.(renderData)
-			for b := range slices.Values(bHeap) {
+			for _, b := range bHeap {
 				go b.render(data.width)
 			}
 			done := make(chan struct{})
