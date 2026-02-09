@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"iter"
 	"math"
 	"os"
 	"sync"
@@ -177,7 +178,7 @@ func (p *Progress) Add(total int64, filler BarFiller, options ...BarOption) (*Ba
 
 // blocks until iteration is done
 func (p *Progress) traverseBars(yield func(*Bar) bool) {
-	seqCh := make(iterRequest, 1)
+	seqCh := make(chan iter.Seq[*Bar], 1)
 	select {
 	case p.operateState <- func(s *pState) { s.hm.iter(seqCh) }:
 		for b := range <-seqCh {
@@ -350,14 +351,16 @@ func (s *pState) render(cw *cwriter.Writer) (err error) {
 		height = width
 	}
 
-	return s.flush(cw, height, s.hm.render(width))
+	seqCh := make(chan iter.Seq[*Bar], 1)
+	s.hm.render(width, seqCh)
+	return s.flush(cw, height, <-seqCh)
 }
 
-func (s *pState) flush(cw *cwriter.Writer, height int, seqCh iterRequest) error {
+func (s *pState) flush(cw *cwriter.Writer, height int, seq iter.Seq[*Bar]) error {
 	var total, popCount int
 	var rows [][]io.Reader
 
-	for b := range <-seqCh {
+	for b := range seq {
 		frame := <-b.frameCh
 		if frame.err != nil {
 			b.cancel()

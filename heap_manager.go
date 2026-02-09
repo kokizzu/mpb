@@ -26,8 +26,6 @@ type heapRequest struct {
 	data interface{}
 }
 
-type iterRequest chan iter.Seq[*Bar]
-
 type pushData struct {
 	bar  *Bar
 	sync bool
@@ -35,7 +33,7 @@ type pushData struct {
 
 type renderData struct {
 	width int
-	seqCh iterRequest
+	seqCh chan<- iter.Seq[*Bar]
 }
 
 type fixData struct {
@@ -101,7 +99,7 @@ func (m heapManager) run(shutdownNotifier chan<- interface{}) {
 			}
 			<-done
 		case h_iter:
-			seqCh := req.data.(iterRequest)
+			seqCh := req.data.(chan<- iter.Seq[*Bar])
 			done := make(chan struct{})
 			seqCh <- func(yield func(*Bar) bool) {
 				defer close(done)
@@ -132,24 +130,30 @@ func (m heapManager) sync() {
 	m <- heapRequest{cmd: h_sync}
 }
 
-func (m heapManager) push(b *Bar, sync bool) {
-	data := pushData{b, sync}
-	m <- heapRequest{cmd: h_push, data: data}
+func (m heapManager) push(bar *Bar, sync bool) {
+	m <- heapRequest{cmd: h_push, data: pushData{
+		bar:  bar,
+		sync: sync,
+	}}
 }
 
-func (m heapManager) render(width int) iterRequest {
-	data := renderData{width, make(iterRequest, 1)}
-	m <- heapRequest{cmd: h_render, data: data}
-	return data.seqCh
+func (m heapManager) render(width int, seqCh chan<- iter.Seq[*Bar]) {
+	m <- heapRequest{cmd: h_render, data: renderData{
+		width: width,
+		seqCh: seqCh,
+	}}
 }
 
-func (m heapManager) iter(seqCh iterRequest) {
+func (m heapManager) iter(seqCh chan<- iter.Seq[*Bar]) {
 	m <- heapRequest{cmd: h_iter, data: seqCh}
 }
 
-func (m heapManager) fix(b *Bar, priority int, lazy bool) {
-	data := fixData{b, priority, lazy}
-	m <- heapRequest{cmd: h_fix, data: data}
+func (m heapManager) fix(bar *Bar, priority int, lazy bool) {
+	m <- heapRequest{cmd: h_fix, data: fixData{
+		bar:      bar,
+		priority: priority,
+		lazy:     lazy,
+	}}
 }
 
 func (m heapManager) state(ch chan<- bool) {
