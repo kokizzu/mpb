@@ -351,9 +351,7 @@ func (s *pState) render(cw *cwriter.Writer) (err error) {
 		height = width
 	}
 
-	seqCh := make(chan iter.Seq[*Bar], 1)
-	s.hm.render(width, seqCh)
-	return s.flush(cw, height, <-seqCh)
+	return s.flush(cw, height, s.hm.render(width))
 }
 
 func (s *pState) flush(cw *cwriter.Writer, height int, seq iter.Seq[*Bar]) error {

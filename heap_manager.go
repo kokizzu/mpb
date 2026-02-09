@@ -137,11 +137,13 @@ func (m heapManager) push(bar *Bar, sync bool) {
 	}}
 }
 
-func (m heapManager) render(width int, seqCh chan<- iter.Seq[*Bar]) {
+func (m heapManager) render(width int) iter.Seq[*Bar] {
+	seqCh := make(chan iter.Seq[*Bar], 1)
 	m <- heapRequest{cmd: h_render, data: renderData{
 		width: width,
 		seqCh: seqCh,
 	}}
+	return <-seqCh
 }
 
 func (m heapManager) iter(seqCh chan<- iter.Seq[*Bar]) {
