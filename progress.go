@@ -317,7 +317,6 @@ func (p *Progress) serve(s *pState, cw *cwriter.Writer) {
 			if s.autoRefresh && s.rmOnComplete {
 				if err := s.render(cw); err != nil {
 					_, _ = fmt.Fprintln(s.debugOut, err.Error())
-					return
 				}
 			}
 			return
