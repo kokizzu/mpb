@@ -48,7 +48,7 @@ type pState struct {
 	hmQueueLen       int
 	reqWidth         int
 	refreshRate      time.Duration
-	delayRC          <-chan struct{}
+	delayRC          <-chan interface{}
 	manualRC         <-chan interface{}
 	shutdownNotifier chan interface{}
 	handOverBarHeap  chan<- []*Bar

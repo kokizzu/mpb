@@ -59,7 +59,7 @@ func WithManualRefresh(ch <-chan interface{}) ContainerOption {
 // soon as bar is added, with this option it's possible to delay
 // rendering process by keeping provided chan unclosed. In other words
 // rendering will start as soon as provided chan is closed.
-func WithRenderDelay(ch <-chan struct{}) ContainerOption {
+func WithRenderDelay(ch <-chan interface{}) ContainerOption {
 	return func(s *pState) {
 		s.delayRC = ch
 	}
