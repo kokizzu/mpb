@@ -20,7 +20,7 @@ import (
 // Bar represents a progress bar.
 type Bar struct {
 	ctx            context.Context
-	cancel         context.CancelCauseFunc
+	cancel         context.CancelFunc
 	index          int // used by heap
 	priority       int // used by heap
 	shutdown       int
@@ -413,7 +413,7 @@ func (b *Bar) serve(bs *bState) {
 			if bs.aborted {
 				return
 			}
-			bs.aborted = !bs.completed() || !errors.Is(context.Cause(b.ctx), context.Canceled)
+			bs.aborted = !bs.completed()
 			return
 		}
 	}
@@ -462,7 +462,7 @@ func (b *Bar) wSyncTable() decorSyncTable {
 
 func (b *Bar) done() {
 	if b.container.noRenderMode {
-		b.cancel(nil)
+		b.cancel()
 	} else {
 		// Technically this call isn't required, but if refresh rate is set to
 		// one hour for example and bar completes within a few minutes p.Wait()
