@@ -44,6 +44,8 @@ func copyBuffer(bar *Bar, dst io.Writer, src io.Reader, buf []byte) (written int
 				err = io.ErrShortWrite
 				break
 			}
+		} else {
+			bar.EwmaIncrBy(0, time.Since(start))
 		}
 		if er != nil {
 			if er != io.EOF {
